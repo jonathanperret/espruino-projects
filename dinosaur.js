@@ -1,7 +1,10 @@
 E.setFlags({pretokenise:1});
+
+let g;
+
 const SSD1306 = (function() {
-  const OLED_WIDTH = 128, OLED_CHAR = 0x40, OLED_CHUNK = 128,
-        U8A = Uint8Array;
+  const OLED_WIDTH = 128, OLED_CHAR = 0x40,
+        OLED_CHUNK = 254, U8A = Uint8Array;
 
   // commands sent when initialising the display
   const extVcc=false; // if true, don't start charge pump 
@@ -25,12 +28,30 @@ const SSD1306 = (function() {
                0xA6, // 24 display normal (non-inverted)
                0xAf // 25 disp on
               ]);
+
   // commands sent when sending data to the display
   const flipCmds = new U8A([
     0,                              // commands follow
     0x21, 0, OLED_WIDTH-1,          // columns
     0x22, 0, 7 /* (height>>3)-1 */  // pages
   ]);
+
+  /*
+    Assembled at http://shell-storm.org/online/Online-Assembler-and-Disassembler:
+
+    movw r1, #128
+    mov r2, #0
+    mov r3, #0
+    loop:
+    subs r1, r1, #1
+    strd r2, r3, [r0], #8
+    bgt loop
+    bx  lr
+  */
+  const __clear1k = E.nativeCall(1, "void(int)",
+    "\x40\xf2\x80\x01\x4f\xf0\x00\x02\x4f\xf0\x00\x03\x49\x1e\xe0\xe8\x02\x23\xfb\xdc\x70\x47"
+  );
+
   function update(options) {
     if (options) {
       if (options.height) {
@@ -45,7 +66,7 @@ const SSD1306 = (function() {
   function makeChunks(buffer) {
     const chunks = [];
     for (let p=0; p<buffer.length; p+=OLED_CHUNK) {
-      chunks.push(new U8A(buffer, p, OLED_CHUNK));
+      chunks.push(new U8A(buffer, p, Math.min(OLED_CHUNK, buffer.length - p)));
     }
     return chunks;
   }
@@ -91,13 +112,15 @@ const SSD1306 = (function() {
       // set on
       oled.on = function() { writeCmd(0xAF); };
 
+      if (oled.buffer.length === 1024) {
+        oled.clear = __clear1k.bind(null, E.getAddressOf(oled.buffer, true));
+      }
+
       // return graphics
       return oled;
     }
   };
 })();
-
-let g;
 
 function Game() {
 
