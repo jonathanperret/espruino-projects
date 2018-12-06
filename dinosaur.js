@@ -58,9 +58,9 @@ const SSD1306 = (function() {
       var chunks = makeChunks(oled.buffer);
 
       if(options) {
-        if (options.address) addr = options.address;  
-        // reset display if 'rst' is part of options 
-        if (options.rst) digitalPulse(options.rst, 0, 10); 
+        if (options.address) addr = options.address;
+        // reset display if 'rst' is part of options
+        if (options.rst) digitalPulse(options.rst, 0, 10);
       }
 
       setTimeout(function() {
@@ -75,7 +75,7 @@ const SSD1306 = (function() {
       oled.flip = function() {
         // set how the data is to be sent (whole screen)
         i2c.writeTo(addr, flipCmds);
-        chunks.forEach((c)=>i2c.writeTo(addr, OLED_CHAR, c));
+        chunks.forEach(c=>{i2c.writeTo(addr, OLED_CHAR, c);});
       };
 
       // set contrast, 0..255
@@ -93,7 +93,7 @@ const SSD1306 = (function() {
   };
 })();
 
-var g;
+let g;
 
 function Game() {
 
@@ -222,11 +222,11 @@ function Game() {
      ##
   `)],
   };
-  
-  IMG.rex.forEach(i=>i.transparent=0);
-  IMG.cacti.forEach(i=>i.transparent=0);
 
-  var cacti, rex, frame, frameTime;
+  IMG.rex.forEach(i=>{i.transparent=0;});
+  IMG.cacti.forEach(i=>{i.transparent=0;});
+
+  let cacti, rex, frame, frameTime, getPixel, drawImage;
 
   function gameStart() {
     rex = {
@@ -237,13 +237,14 @@ function Game() {
       score : 0
     };
     cacti = [ { x:128, img:1 } ];
-    var random = new Uint8Array(128*3/8);
-    for (var i=0;i<50;i++) {
-      var a = 0|(Math.random()*random.length);
-      var b = 0|(Math.random()*8);
+    const random = new Uint8Array(128*3/8);
+    for (let i=0;i<50;i++) {
+      const a = 0|(Math.random()*random.length);
+      const b = 0|(Math.random()*8);
       random[a]|=1<<b;
     }
     IMG.ground = { width: 128, height: 3, bpp : 1, buffer : random.buffer };
+
     frame = 0;
     frameTime = 0;
     setInterval(onFrame, 5);
@@ -262,9 +263,7 @@ function Game() {
   function rexAnimate() {
     rex.img = rex.img?0:1;
   }
-  
-  let gp;
-  
+
   function onFrame() {
     frameTime -= getTime();
     g.clear();
@@ -294,56 +293,57 @@ function Game() {
       rex.vy -= 0.2;
       if (rex.y<=0) {rex.y=0; rex.vy=0; }
       // move cacti
-      var lastCactix = cacti.length?cacti[cacti.length-1].x:127;
+      const lastCactix = cacti.length?cacti[cacti.length-1].x:127;
       if (lastCactix<128) {
         cacti.push({
           x : Math.round(lastCactix + 36 + Math.random()*128),
           img : (Math.random()>0.5)?1:0
         });
       }
-      cacti.forEach(c=>c.x--);
+      cacti.forEach(c=>{c.x--;});
       while (cacti.length && cacti[0].x<-10) cacti.shift();
     } else {
       g.drawString("Game Over!",(128-g.stringWidth("Game Over!"))/2,20);
     }
     g.drawLine(0,60,127,60);
-    cacti.forEach(c=>g.drawImage(IMG.cacti[c.img],c.x,60-IMG.cacti[c.img].height));
+    cacti.forEach(c=>{drawImage(IMG.cacti[c.img],c.x,60-IMG.cacti[c.img].height);});
     // check against actual pixels
     var rexx = rex.x;
     var rexy = 38-rex.y;
     if (rex.alive &&
-       (gp(rexx+0, rexy+13) ||
-        gp(rexx+2, rexy+15) ||
-        gp(rexx+5, rexy+19) ||
-        gp(rexx+10, rexy+19) ||
-        gp(rexx+12, rexy+15) ||
-        gp(rexx+13, rexy+13) ||
-        gp(rexx+15, rexy+11) ||
-        gp(rexx+17, rexy+7) ||
-        gp(rexx+19, rexy+5) ||
-        gp(rexx+19, rexy+1))) {
+       (getPixel(rexx+0, rexy+13) ||
+        getPixel(rexx+2, rexy+15) ||
+        getPixel(rexx+5, rexy+19) ||
+        getPixel(rexx+10, rexy+19) ||
+        getPixel(rexx+12, rexy+15) ||
+        getPixel(rexx+13, rexy+13) ||
+        getPixel(rexx+15, rexy+11) ||
+        getPixel(rexx+17, rexy+7) ||
+        getPixel(rexx+19, rexy+5) ||
+        getPixel(rexx+19, rexy+1))) {
       return gameStop();
     }
-    g.drawImage(IMG.rex[rex.img], rexx, rexy);
-    var groundOffset = frame&127;
-    g.drawImage(IMG.ground, -groundOffset, 61);
-    g.drawImage(IMG.ground, 128-groundOffset, 61);
-    g.drawString(rex.score,127-g.stringWidth(rex.score));
+    drawImage(IMG.rex[rex.img], rexx, rexy);
+    const groundOffset = frame&127;
+    drawImage(IMG.ground, -groundOffset, 61);
+    drawImage(IMG.ground, 128-groundOffset, 61);
+    g.drawString(rex.score, 127-g.stringWidth(rex.score));
     g.flip();
     frameTime += getTime();
     if ((frame & 63) === 0) {
-      print(1000 * frameTime / 64 + " ms");
+      print(frameTime * (1000 / 64) + " ms");
       frameTime = 0;
     }
   }
 
   function onInit() {
-    [BTNA, BTNB, BTNU, BTND, BTNL, BTNR].forEach((b) => pinMode(b, 'input_pullup'));
+    [BTNA, BTNB, BTNU, BTND, BTNL, BTNR].forEach(b=>{pinMode(b, 'input_pullup');});
     // I2C
-    I2C1.setup({scl:D18,sda:D15, bitrate:1500000});
+    I2C1.setup({scl:D18,sda:D15, bitrate:400000});
     //  g = require("SSD1306").connect(I2C1, gameStart);
     g = SSD1306.connect(I2C1, gameStart);
-    gp = g.getPixel.bind(g);
+    getPixel = g.getPixel.bind(g);
+    drawImage = g.drawImage.bind(g);
   }
 
   onInit();
@@ -354,4 +354,4 @@ function onInit() {
 }
 
 //onInit(); // for development
-//save(); // for 'production'
+save(); // for 'production'
