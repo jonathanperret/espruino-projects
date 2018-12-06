@@ -4,46 +4,47 @@ const SSD1306 = (function() {
         U8A = Uint8Array;
 
   // commands sent when initialising the display
-  var extVcc=false; // if true, don't start charge pump 
-  var initCmds = new U8A([ 
-               0xAe, // 0 disp off
-               0xD5, // 1 clk div
-               0x80, // 2 suggested ratio
-               0xA8, 63, // 3 set multiplex, height-1
-               0xD3,0x0, // 5 display offset
+  const extVcc=false; // if true, don't start charge pump 
+  const initCmds = new U8A([
+               0,    // commands follow
+               0xAe, // 1 disp off
+               0xD5, // 2 clk div
+               0x80, // 3 suggested ratio
+               0xA8, 63, // 4 set multiplex, height-1
+               0xD3,0x0, // 6 display offset
                0x40, // 7 start line
-               0x8D, extVcc?0x10:0x14, // 8 charge pump
-               0x20,0x0, // 10 memory mode
-               0xA1, // 12 seg remap 1
-               0xC8, // 13 comscandec
-               0xDA, 0x12, // 14 set compins, height==64 ? 0x12:0x02,
-               0x81, extVcc?0x9F:0xCF, // 16 set contrast
-               0xD9, extVcc?0x22:0xF1, // 18 set precharge
-               0xDb, 0x40, // 20 set vcom detect
-               0xA4, // 22 display all on
-               0xA6, // 23 display normal (non-inverted)
-               0xAf // 24 disp on
+               0x8D, extVcc?0x10:0x14, // 9 charge pump
+               0x20,0x0, // 11 memory mode
+               0xA1, // 13 seg remap 1
+               0xC8, // 14 comscandec
+               0xDA, 0x12, // 15 set compins, height==64 ? 0x12:0x02,
+               0x81, extVcc?0x9F:0xCF, // 17 set contrast
+               0xD9, extVcc?0x22:0xF1, // 19 set precharge
+               0xDb, 0x40, // 21 set vcom detect
+               0xA4, // 23 display all on
+               0xA6, // 24 display normal (non-inverted)
+               0xAf // 25 disp on
               ]);
   // commands sent when sending data to the display
-  var flipCmds = new U8A([
-    0,
-    0x21, 0, OLED_WIDTH-1,
-    0x22, 0, 7 /* (height>>3)-1 */
+  const flipCmds = new U8A([
+    0,                              // commands follow
+    0x21, 0, OLED_WIDTH-1,          // columns
+    0x22, 0, 7 /* (height>>3)-1 */  // pages
   ]);
   function update(options) {
     if (options) {
       if (options.height) {
-        initCmds[4] = options.height-1;
-        initCmds[15] = options.height==64 ? 0x12 : 0x02;
-        flipCmds[6] = (options.height>>3)-1;
+        initCmds[5] = options.height-1;
+        initCmds[16] = options.height==64 ? 0x12 : 0x02;
+        flipCmds[7] = (options.height>>3)-1;
       }
-      if (options.contrast!==undefined) initCmds[17] = options.contrast;
+      if (options.contrast!==undefined) initCmds[18] = options.contrast;
     }
   }
 
   function makeChunks(buffer) {
-    var chunks = [];
-    for (var p=0; p<buffer.length; p+=OLED_CHUNK) {
+    const chunks = [];
+    for (let p=0; p<buffer.length; p+=OLED_CHUNK) {
       chunks.push(new U8A(buffer, p, OLED_CHUNK));
     }
     return chunks;
@@ -52,10 +53,10 @@ const SSD1306 = (function() {
   return {
     connect: function(i2c, callback, options) {
       update(options);
-      var oled = Graphics.createArrayBuffer(OLED_WIDTH,initCmds[4]+1,1,{vertical_byte : true});
+      const oled = Graphics.createArrayBuffer(OLED_WIDTH,initCmds[5]+1,1,{vertical_byte : true});
 
-      var addr = 0x3C;
-      var chunks = makeChunks(oled.buffer);
+      let addr = 0x3C;
+      const chunks = makeChunks(oled.buffer);
 
       if(options) {
         if (options.address) addr = options.address;
@@ -63,9 +64,12 @@ const SSD1306 = (function() {
         if (options.rst) digitalPulse(options.rst, 0, 10);
       }
 
+      const write = i2c.writeTo.bind(i2c, addr),
+        writeCmd = i2c.writeTo.bind(i2c, addr, 0);
+
       setTimeout(function() {
         // configure the OLED
-        initCmds.forEach(function(d) {i2c.writeTo(addr, [0,d]);});
+        write(initCmds);
       }, 50);
 
       // if there is a callback, call it now(ish)
@@ -74,18 +78,18 @@ const SSD1306 = (function() {
       // write to the screen
       oled.flip = function() {
         // set how the data is to be sent (whole screen)
-        i2c.writeTo(addr, flipCmds);
-        chunks.forEach(c=>{i2c.writeTo(addr, OLED_CHAR, c);});
+        write(flipCmds);
+        chunks.forEach(c=>{write(OLED_CHAR, c);});
       };
 
       // set contrast, 0..255
-      oled.setContrast = function(c) { i2c.writeTo(addr, 0, 0x81, c); };
+      oled.setContrast = function(c) { writeCmd(0x81, c); };
 
       // set off
-      oled.off = function() { i2c.writeTo(addr, 0, 0xAE); };
+      oled.off = function() { writeCmd(0xAE); };
 
       // set on
-      oled.on = function() { i2c.writeTo(addr, 0, 0xAF); };
+      oled.on = function() { writeCmd(0xAF); };
 
       // return graphics
       return oled;
@@ -247,7 +251,7 @@ function Game() {
 
     frame = 0;
     frameTime = 0;
-    setInterval(onFrame, 5);
+    setInterval(onFrame, 1000 / 60);
   }
 
   function gameStop() {
@@ -256,7 +260,7 @@ function Game() {
     clearInterval();
     setTimeout(function() {
       setWatch(gameStart, BTNA, {repeat:0,debounce:50,edge:"falling"});
-    }, 1000);
+    }, 500);
     setTimeout(onFrame, 10);
   }
 
@@ -308,8 +312,8 @@ function Game() {
     g.drawLine(0,60,127,60);
     cacti.forEach(c=>{drawImage(IMG.cacti[c.img],c.x,60-IMG.cacti[c.img].height);});
     // check against actual pixels
-    var rexx = rex.x;
-    var rexy = 38-rex.y;
+    const rexx = rex.x;
+    const rexy = 38-rex.y;
     if (rex.alive &&
        (getPixel(rexx+0, rexy+13) ||
         getPixel(rexx+2, rexy+15) ||
