@@ -86,7 +86,8 @@ const SSD1306 = (function() {
       }
 
       const write = i2c.writeTo.bind(i2c, addr),
-        writeCmd = i2c.writeTo.bind(i2c, addr, 0);
+        writeCmd = i2c.writeTo.bind(i2c, addr, 0),
+        writeData = (data) => { try{write(OLED_CHAR, data);}catch(e){} };
 
       setTimeout(function() {
         // configure the OLED
@@ -100,7 +101,7 @@ const SSD1306 = (function() {
       oled.flip = function() {
         // set how the data is to be sent (whole screen)
         write(flipCmds);
-        chunks.forEach(c=>{write(OLED_CHAR, c);});
+        chunks.forEach(writeData);
       };
 
       // set contrast, 0..255
