@@ -5,9 +5,21 @@ const PIN_CNF = 0x50000700;
 
 let g;
 
+const TWIM_TASKS_STARTTX  = 0x40004008;
+const TWIM_TASKS_STOP     = 0x40004014;
+const TWIM_EVENTS_STOPPED = 0x40004104;
+const TWIM_EVENTS_ERROR   = 0x40004124;
+const TWIM_SHORTS         = 0x40004200;
+const TWIM_ERRORSRC       = 0x400044C4;
+const TWIM_ENABLE         = 0x40004500;
+const TWIM_TXD_PTR        = 0x40004544;
+const TWIM_TXD_MAXCNT     = 0x40004548;
+const TWIM_TXD_AMOUNT     = 0x4000454C;
+const TWIM_TXD_LIST       = 0x40004550;
+
 const SSD1306 = (function() {
   const OLED_WIDTH = 128, OLED_CHAR = 0x40,
-        OLED_CHUNK = 254, U8A = Uint8Array;
+        OLED_CHUNK = OLED_WIDTH + 1, U8A = Uint8Array;
 
   // commands sent when initialising the display
   const extVcc=false; // if true, don't start charge pump 
@@ -66,21 +78,65 @@ const SSD1306 = (function() {
     }
   }
 
-  function makeChunks(buffer) {
-    const chunks = [];
-    for (let p=0; p<buffer.length; p+=OLED_CHUNK) {
-      chunks.push(new U8A(buffer, p, Math.min(OLED_CHUNK, buffer.length - p)));
-    }
-    return chunks;
+  function delay(ms) {
+    const end = getTime() + ms / 1000;
+    while(getTime() < end);
+  }
+
+  function twimEnable() {
+    poke32(TWIM_ENABLE, 6      /* enable TWIM */);
+    poke32(TWIM_SHORTS, 1 << 9 /* LASTTX -> STOP */);
+  }
+
+  function twimDisable() {
+    poke32(TWIM_ENABLE, 5      /* enable TWI */);
+  }
+
+  function notTimeout(f) { setTimeout(f, 0); }
+
+  function twimAsyncWrite(dataAddr, len, done) {
+    poke32(TWIM_TXD_PTR, dataAddr);
+    poke32(TWIM_TXD_MAXCNT, len);
+    poke32(TWIM_TXD_LIST, 0);
+
+    poke32(TWIM_EVENTS_STOPPED, 0);
+    poke32(TWIM_EVENTS_ERROR, 0);
+    poke32(TWIM_TASKS_STARTTX, 1);
+
+    // yield for about the right amount of time
+    notTimeout(() => {
+      while(!peek32(TWIM_EVENTS_STOPPED)
+            && !peek32(TWIM_EVENTS_ERROR)) /* wait */;
+
+      if(peek32(TWIM_EVENTS_ERROR)) {
+        print("I2c err", peek32(TWIM_ERRORSRC));
+      }
+
+      done();
+    }, 0.025 * len);
+  }
+
+  function nextChunk(bufferStart, bufferEnd, done) {
+    poke8(bufferStart, OLED_CHAR);
+    twimAsyncWrite(bufferStart, OLED_CHUNK, () => {
+      bufferStart += OLED_CHUNK;
+      if (bufferStart < bufferEnd) {
+        nextChunk(bufferStart, bufferEnd, done);
+      } else {
+        done();
+      }
+    });
   }
 
   return {
     connect: function(i2c, callback, options) {
       update(options);
-      const oled = Graphics.createArrayBuffer(OLED_WIDTH,initCmds[5]+1,1,{vertical_byte : true});
+      const oled = Graphics.createArrayBuffer(OLED_CHUNK,
+                                              initCmds[5]+1,
+                                              1,
+                                              {vertical_byte : true});
 
       let addr = 0x3C;
-      const chunks = makeChunks(oled.buffer);
 
       if(options) {
         if (options.address) addr = options.address;
@@ -89,8 +145,7 @@ const SSD1306 = (function() {
       }
 
       const write = i2c.writeTo.bind(i2c, addr),
-        writeCmd = i2c.writeTo.bind(i2c, addr, 0),
-        writeData = (data) => { try{write(OLED_CHAR, data);}catch(e){} };
+        writeCmd = i2c.writeTo.bind(i2c, addr, 0);
 
       setTimeout(function() {
         // configure the OLED
@@ -100,11 +155,21 @@ const SSD1306 = (function() {
       // if there is a callback, call it now(ish)
       if (callback !== undefined) setTimeout(callback, 100);
 
+      let flipping = false;
+      const bufferStart = E.getAddressOf(oled.buffer, true);
+      const bufferEnd = bufferStart + oled.buffer.length;
+
       // write to the screen
       oled.flip = function() {
+        if (flipping) { Bluetooth.write("!"); return; }
+        flipping = true;
         // set how the data is to be sent (whole screen)
         write(flipCmds);
-        chunks.forEach(writeData);
+        twimEnable();
+        nextChunk(bufferStart, bufferEnd, ()=>{
+          twimDisable();
+          flipping = false;
+        });
       };
 
       // set contrast, 0..255
@@ -257,7 +322,7 @@ function Game() {
   IMG.rex.forEach(i=>{i.transparent=0;});
   IMG.cacti.forEach(i=>{i.transparent=0;});
 
-  let cacti, rex, frame, frameTime, getPixel, drawImage;
+  let cacti, rex, frame, frameTime, frameDelta, getPixel, drawImage;
 
   function gameStart() {
     rex = {
@@ -278,7 +343,8 @@ function Game() {
 
     frame = 0;
     frameTime = 0;
-    setInterval(onFrame, 1000 / 60);
+    frameDelta = -getTime();
+    setInterval(onFrame, 90);
   }
 
   function gameStop() {
@@ -296,6 +362,7 @@ function Game() {
   }
 
   function onFrame() {
+    frameDelta += getTime();
     frameTime -= getTime();
     g.clear();
     if (rex.alive) {
