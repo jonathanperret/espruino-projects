@@ -1,5 +1,8 @@
 E.setFlags({pretokenise:1});
 
+const scl = D18, sda = D15;
+const PIN_CNF = 0x50000700;
+
 let g;
 
 const SSD1306 = (function() {
@@ -359,17 +362,26 @@ function Game() {
     g.flip();
     frameTime += getTime();
     if ((frame & 63) === 0) {
-      print(frameTime * (1000 / 64) + " ms");
+      print(frameTime * (1000 / 64) + " ms",
+            frameDelta * (1000 / 64) + " ms");
       frameTime = 0;
+      frameDelta = 0;
     }
+    frameDelta -= getTime();
   }
 
   function onInit() {
     [BTNA, BTNB, BTNU, BTND, BTNL, BTNR].forEach(b=>{pinMode(b, 'input_pullup');});
     // I2C
-    I2C1.setup({scl:D18,sda:D15, bitrate:400000});
+
+    I2C1.setup({scl:scl, sda:sda, bitrate:400000});
+
+    poke32(PIN_CNF + scl.getInfo().num * 4, 0x70c /* high drive 0 */);
+    poke32(PIN_CNF + sda.getInfo().num * 4, 0x70c /* high drive 0 */);
+
     //  g = require("SSD1306").connect(I2C1, gameStart);
     g = SSD1306.connect(I2C1, gameStart);
+
     getPixel = g.getPixel.bind(g);
     drawImage = g.drawImage.bind(g);
   }
