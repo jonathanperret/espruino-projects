@@ -5,19 +5,38 @@ const PIN_CNF = 0x50000700;
 
 let g;
 
-const TWIM_TASKS_STARTTX  = 0x40004008;
-const TWIM_TASKS_STOP     = 0x40004014;
-const TWIM_EVENTS_STOPPED = 0x40004104;
-const TWIM_EVENTS_ERROR   = 0x40004124;
-const TWIM_SHORTS         = 0x40004200;
-const TWIM_ERRORSRC       = 0x400044C4;
-const TWIM_ENABLE         = 0x40004500;
-const TWIM_TXD_PTR        = 0x40004544;
-const TWIM_TXD_MAXCNT     = 0x40004548;
-const TWIM_TXD_AMOUNT     = 0x4000454C;
-const TWIM_TXD_LIST       = 0x40004550;
-
 const SSD1306 = (function() {
+  const TWIM_TASKS_STARTTX  = 0x40004008;
+  const TWIM_TASKS_STOP     = 0x40004014;
+  const TWIM_EVENTS_STOPPED = 0x40004104;
+  const TWIM_EVENTS_ERROR   = 0x40004124;
+  const TWIM_SHORTS         = 0x40004200;
+  const TWIM_ERRORSRC       = 0x400044C4;
+  const TWIM_ENABLE         = 0x40004500;
+  const TWIM_TXD_PTR        = 0x40004544;
+  const TWIM_TXD_MAXCNT     = 0x40004548;
+  const TWIM_TXD_AMOUNT     = 0x4000454C;
+  const TWIM_TXD_LIST       = 0x40004550;
+
+  const TIMER_TASKS_START           = 0x4001A000;
+  const TIMER_TASKS_STOP            = 0x4001A004;
+  const TIMER_TASKS_COUNT           = 0x4001A008;
+  const TIMER_TASKS_CLEAR           = 0x4001A00C;
+  const TIMER_SHORTS                = 0x4001A200;
+  const TIMER_MODE                  = 0x4001A504;
+  const TIMER_BITMODE               = 0x4001A508;
+  const TIMER_PRESCALER             = 0x4001A510;
+  const TIMER_TASKS_CAPTURE  = (n) => 0x4001A040 + 4 * n;
+  const TIMER_EVENTS_COMPARE = (n) => 0x4001A140 + 4 * n;
+  const TIMER_CC             = (n) => 0x4001A540 + 4 * n;
+
+  const PPI_CHEN            = 0x4001F500;
+  const PPI_CHENSET         = 0x4001F504;
+  const PPI_CHENCLR         = 0x4001F508;
+  const PPI_CH_EEP          = (ch) => 0x4001F510 + 8 * ch;
+  const PPI_CH_TEP          = (ch) => 0x4001F514 + 8 * ch;
+  const PPI_CH_FORK         = (ch) => 0x4001F910 + 4 * ch;
+
   const OLED_WIDTH = 128, OLED_CHAR = 0x40,
         OLED_CHUNK = OLED_WIDTH + 1, U8A = Uint8Array;
 
