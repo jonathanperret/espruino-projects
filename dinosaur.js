@@ -8,7 +8,8 @@ let scl = D18,
     BTNU = D1,
     BTND = D28,
     BTNA = D21,
-    BTNB = D8;
+    BTNB = D8,
+    screenHeight = 64;
 
 switch(NRF.getAddress().slice(-5)) {
   case "d4:0b":
@@ -20,6 +21,7 @@ switch(NRF.getAddress().slice(-5)) {
     BTND = D8;
     BTNA = D29;
     BTNB = D28;
+    screenHeight = 32;
 
     break;
 }
@@ -400,6 +402,7 @@ function Game() {
     frameDelta += getTime();
     frameTime -= getTime();
     g.clear();
+    const scrollY = Math.min(64 - screenHeight, 32 - rex.y + 16);
     if (rex.alive) {
       frame++;
       rex.score++;
@@ -438,11 +441,11 @@ function Game() {
     } else {
       g.drawString("Game Over!",(128-g.stringWidth("Game Over!"))/2,20);
     }
-    g.drawLine(0,60,127,60);
-    cacti.forEach(c=>{drawImage(IMG.cacti[c.img],c.x,60-IMG.cacti[c.img].height);});
+    g.drawLine(0,60 - scrollY,127,60 - scrollY);
+    cacti.forEach(c=>{drawImage(IMG.cacti[c.img],c.x,60-IMG.cacti[c.img].height - scrollY);});
     // check against actual pixels
     const rexx = rex.x;
-    const rexy = 38-rex.y;
+    const rexy = (60 - 22) - rex.y - scrollY;
     if (rex.alive &&
        (getPixel(rexx+0, rexy+13) ||
         getPixel(rexx+2, rexy+15) ||
@@ -458,8 +461,8 @@ function Game() {
     }
     drawImage(IMG.rex[rex.img], rexx, rexy);
     const groundOffset = frame&127;
-    drawImage(IMG.ground, -groundOffset, 61);
-    drawImage(IMG.ground, 128-groundOffset, 61);
+    drawImage(IMG.ground, -groundOffset, 61 - scrollY);
+    drawImage(IMG.ground, 128-groundOffset, 61 - scrollY);
     g.drawString(rex.score, 127-g.stringWidth(rex.score));
     g.flip();
     frameTime += getTime();
@@ -482,7 +485,10 @@ function Game() {
     poke32(PIN_CNF + sda.getInfo().num * 4, 0x70c /* high drive 0 */);
 
     //  g = require("SSD1306").connect(I2C1, gameStart);
-    g = SSD1306.connect(I2C1, gameStart);
+    g = SSD1306.connect(I2C1, gameStart, {
+      contrast: E.getBattery() < 90 ? 0 : 0xff,
+      height: screenHeight,
+    });
 
     getPixel = g.getPixel.bind(g);
     drawImage = g.drawImage.bind(g);
