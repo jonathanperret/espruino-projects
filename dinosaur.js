@@ -375,7 +375,13 @@ function Game() {
 
   let cacti, rex, frame, frameTime, frameDelta, getPixel, drawImage;
 
+  let powerOffTimeout;
+
   function gameStart() {
+    if (powerOffTimeout) {
+      clearTimeout(powerOffTimeout);
+      powerOffTimeout = null;
+    }
     rex = {
       alive : true,
       img : 0,
@@ -406,6 +412,22 @@ function Game() {
       setWatch(gameStart, BTNA, {repeat:0,debounce:50,edge:"falling"});
     }, 500);
     setTimeout(onFrame, 10);
+    powerOffTimeout = setTimeout(powerOff, 10000);
+  }
+
+  function powerOff() {
+    powerOffTimeout = null;
+    g.clear();
+    g.flip();
+    g.off();
+    clearWatch();
+    clearInterval();
+    clearTimeout();
+    setWatch(()=>{
+      NRF.wake();
+      setTimeout(gameInit, 10);
+    }, BTNA);
+    NRF.sleep();
   }
 
   function rexAnimate() {
@@ -489,8 +511,9 @@ function Game() {
     frameDelta -= getTime();
   }
 
-  function onInit() {
+  function gameInit() {
     [BTNA, BTNB, BTNU, BTND, BTNL, BTNR].forEach(b=>{pinMode(b, 'input_pullup');});
+
     // I2C
 
     I2C1.setup({scl:scl, sda:sda, bitrate:400000});
@@ -508,11 +531,11 @@ function Game() {
     drawImage = g.drawImage.bind(g);
   }
 
-  onInit();
+  gameInit();
 }
 
 function onInit() {
-  setTimeout(Game, 1000);
+  setTimeout(Game, 200);
 }
 
 //onInit(); // for development
