@@ -160,16 +160,34 @@ const SSD1306 = (function() {
     }, 0.025 * len);
   }
 
-  function nextChunk(bufferStart, bufferEnd, done) {
-    poke8(bufferStart, OLED_CHAR);
-    twimAsyncWrite(bufferStart, OLED_CHUNK, () => {
+  function twimWriteSync(dataAddr, len) {
+    poke32(TWIM_TXD_PTR, dataAddr);
+    poke32(TWIM_TXD_MAXCNT, len);
+    poke32(TWIM_TXD_LIST, 0);
+
+    poke32(TWIM_EVENTS_STOPPED, 0);
+    poke32(TWIM_EVENTS_ERROR, 0);
+    poke32(TWIM_TASKS_STARTTX, 1);
+
+    let timeout=1000;
+    while(!peek32(TWIM_EVENTS_STOPPED)
+          && !peek32(TWIM_EVENTS_ERROR)
+          && timeout--) waited = true;
+    if(timeout<=0) Bluetooth.write("timeout");
+    if(peek32(TWIM_TXD_AMOUNT) != len) {
+      print(peek32(TWIM_TXD_AMOUNT), "!=", len);
+    }
+    if(peek32(TWIM_EVENTS_ERROR)) {
+      print("I2c err", peek32(TWIM_ERRORSRC));
+    }
+  }
+
+  function writeChunksSync(bufferStart, bufferEnd) {
+    while(bufferStart < bufferEnd) {
+      poke8(bufferStart, OLED_CHAR);
+      twimWriteSync(bufferStart, OLED_CHUNK);
       bufferStart += OLED_CHUNK;
-      if (bufferStart < bufferEnd) {
-        nextChunk(bufferStart, bufferEnd, done);
-      } else {
-        done();
-      }
-    });
+    }
   }
 
   return {
@@ -199,21 +217,17 @@ const SSD1306 = (function() {
       // if there is a callback, call it now(ish)
       if (callback !== undefined) setTimeout(callback, 100);
 
-      let flipping = false;
       const bufferStart = E.getAddressOf(oled.buffer, true);
       const bufferEnd = bufferStart + oled.buffer.length;
 
       // write to the screen
       oled.flip = function() {
-        if (flipping) { Bluetooth.write("!"); return; }
         flipping = true;
         // set how the data is to be sent (whole screen)
         write(flipCmds);
         twimEnable();
-        nextChunk(bufferStart, bufferEnd, ()=>{
-          twimDisable();
-          flipping = false;
-        });
+        writeChunksSync(bufferStart, bufferEnd);
+        twimDisable();
       };
 
       // set contrast, 0..255
@@ -381,7 +395,7 @@ function Game() {
     frame = 0;
     frameTime = 0;
     frameDelta = -getTime();
-    setInterval(onFrame, 90);
+    setInterval(onFrame, 50);
   }
 
   function gameStop() {
