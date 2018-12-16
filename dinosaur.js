@@ -1,6 +1,29 @@
 E.setFlags({pretokenise:1});
 
-const scl = D18, sda = D15;
+
+let scl = D18,
+    sda = D15,
+    BTNL = D30,
+    BTNR = D29,
+    BTNU = D1,
+    BTND = D28,
+    BTNA = D21,
+    BTNB = D8;
+
+switch(NRF.getAddress().slice(-5)) {
+  case "d4:0b":
+    scl = D1;
+    sda = D0;
+    BTNL = D18;
+    BTNR = D6;
+    BTNU = D21;
+    BTND = D8;
+    BTNA = D29;
+    BTNB = D28;
+
+    break;
+}
+
 const PIN_CNF = 0x50000700;
 
 let g;
@@ -211,13 +234,6 @@ const SSD1306 = (function() {
 })();
 
 function Game() {
-
-  const BTNL = D30,
-    BTNR = D29,
-    BTNU = D1,
-    BTND = D28,
-    BTNA = D21,
-    BTNB = D8;
 
   // Images can be added like this in Espruino v2.00
   const IMG = {
@@ -476,7 +492,7 @@ function Game() {
 }
 
 function onInit() {
-  Game();
+  setTimeout(Game, 1000);
 }
 
 //onInit(); // for development
